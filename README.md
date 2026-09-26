@@ -1,4 +1,3 @@
-# nz-quake-watch
 # NZ Quake Watch
 
 A real-time earthquake monitoring dashboard for New Zealand. It polls the
