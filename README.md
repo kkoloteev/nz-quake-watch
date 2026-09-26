@@ -1,0 +1,1 @@
+# nz-quake-watch
