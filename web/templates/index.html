@@ -1,0 +1,107 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>NZ Quake Watch</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌏</text></svg>">
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <style>
+        body { font-family: sans-serif; margin: 0; background: #f5f5f5; color: #222; }
+        header { padding: 0.75rem 1.5rem; background: #1a1a2e; color: white; }
+        header a { color: #8ecae6; }
+        #map { height: calc(100vh - 60px); width: 100%; position: relative; }
+
+        .legend {
+            position: absolute;
+            bottom: 24px;
+            right: 12px;
+            z-index: 1;
+            background: rgba(255,255,255,0.9);
+            color: #222;
+            padding: 0.5rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+        }
+        .legend span { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 6px; }
+    </style>
+</head>
+<body>
+    <header>
+        <strong>NZ Quake Watch</strong> — data: <a href="https://www.geonet.org.nz/">GeoNet</a>, CC BY 3.0 NZ
+    </header>
+    <div id="map">
+        <div class="legend">
+            <span style="background:#2980b9"></span>MMI &lt; 2<br>
+            <span style="background:#f1c40f"></span>MMI 2–3<br>
+            <span style="background:#e67e22"></span>MMI 4–5<br>
+            <span style="background:#c0392b"></span>MMI 6+
+        </div>
+    </div>
+
+    <script>
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+            center: [173.0, -41.5], // MapLibre — [lon, lat]
+            zoom: 5,
+        });
+
+        map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+        function mmiColor(mmi) {
+            if (mmi >= 6) return '#c0392b';
+            if (mmi >= 4) return '#e67e22';
+            if (mmi >= 2) return '#f1c40f';
+            return '#2980b9';
+        }
+
+        let markers = [];
+
+        async function loadQuakes() {
+            const resp = await fetch('/api/quakes');
+            const data = await resp.json();
+
+            markers.forEach(m => m.remove());
+            markers = [];
+
+            data.features.forEach(f => {
+                const [lon, lat] = f.geometry.coordinates;
+                const p = f.properties;
+
+                const el = document.createElement('div');
+                el.style.width = `${Math.max(8, p.magnitude * 6)}px`;
+                el.style.height = el.style.width;
+                el.style.borderRadius = '50%';
+                el.style.background = mmiColor(p.mmi);
+                el.style.opacity = '0.8';
+                el.style.border = '1px solid rgba(0,0,0,0.3)';
+                el.style.cursor = 'pointer';
+
+                const popup = new maplibregl.Popup({ offset: 12 }).setHTML(`
+                    <strong>${p.locality}</strong><br>
+                    Magnitude: ${p.magnitude.toFixed(1)}<br>
+                    Depth: ${p.depth.toFixed(1)} km<br>
+                    MMI: ${p.mmi}<br>
+                    Quality: ${p.quality}<br>
+                    Time: ${new Date(p.time).toLocaleString()}
+                `);
+
+                const marker = new maplibregl.Marker({ element: el })
+                    .setLngLat([lon, lat])
+                    .setPopup(popup)
+                    .addTo(map);
+
+                markers.push(marker);
+            });
+        }
+
+        map.on('load', () => {
+            loadQuakes();
+            setInterval(loadQuakes, 60000);
+        });
+    </script>
+</body>
+</html>

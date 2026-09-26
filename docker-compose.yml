@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: quakes
+      POSTGRES_USER: quakes
+      POSTGRES_PASSWORD: quakes_pass
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quakes -d quakes"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  flyway:
+    image: flyway/flyway:10
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./migrations:/flyway/sql
+    command: >
+      -url=jdbc:postgresql://db:5432/quakes
+      -user=quakes
+      -password=quakes_pass
+      -connectRetries=10
+      migrate
+
+  fetcher:
+    build: ./fetcher
+    depends_on:
+      flyway:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://quakes:quakes_pass@db:5432/quakes
+      POLL_INTERVAL_SECONDS: 300
+
+  web:
+    build: ./web
+    depends_on:
+      flyway:
+        condition: service_completed_successfully
+    ports:
+      - "5000:5000"
+    environment:
+      DATABASE_URL: postgresql://quakes:quakes_pass@db:5432/quakes
+
+volumes:
+  pg_data:
