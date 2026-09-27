@@ -42,6 +42,8 @@ def get_db_connection():
 
 
 def get_rabbitmq_channel():
+    # RabbitMQ может ещё не успеть подняться в момент старта контейнера,
+    # даже несмотря на healthcheck — ретраим соединение, а не падаем сразу.
     for attempt in range(10):
         try:
             connection = pika.BlockingConnection(pika.URLParameters(RABBITMQ_URL))
@@ -108,6 +110,16 @@ if __name__ == '__main__':
         while True:
             try:
                 sync_once(rmq_channel)
+            except (pika.exceptions.AMQPError, pika.exceptions.StreamLostError):
+                # соединение/канал умерли (обрыв сети, рестарт брокера и т.п.) —
+                # переподключаемся перед следующей попыткой, иначе будем вечно
+                # писать в мёртвый channel
+                log.exception('RabbitMQ connection lost, reconnecting')
+                try:
+                    rmq_connection.close()
+                except Exception:
+                    pass
+                rmq_connection, rmq_channel = get_rabbitmq_channel()
             except Exception:
                 log.exception('Fetch cycle failed')
             time.sleep(POLL_INTERVAL)

@@ -1,6 +1,7 @@
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: quakes
       POSTGRES_USER: quakes
@@ -31,6 +32,7 @@ services:
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
+    restart: unless-stopped
     ports:
       - "127.0.0.1:5672:5672"   # AMQP
       - "127.0.0.1:15672:15672" # management UI (guest/guest)
@@ -44,6 +46,7 @@ services:
 
   fetcher:
     build: ./fetcher
+    restart: unless-stopped
     depends_on:
       flyway:
         condition: service_completed_successfully
@@ -52,10 +55,11 @@ services:
     environment:
       DATABASE_URL: postgresql://quakes:quakes_pass@db:5432/quakes
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
-      POLL_INTERVAL_SECONDS: 300
+      POLL_INTERVAL_SECONDS: 30
 
   notifier:
     build: ./notifier
+    restart: unless-stopped
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -64,6 +68,7 @@ services:
 
   web:
     build: ./web
+    restart: unless-stopped
     depends_on:
       flyway:
         condition: service_completed_successfully
